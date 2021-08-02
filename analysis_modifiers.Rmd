@@ -1,0 +1,422 @@
+---
+title: "Quantifier/Degree-modifier constructions"
+author: "Stefan Hartmann, Jakob Neels, Tobias Ungerer"
+date: "8/2/2021"
+output: 
+  html_document:
+    theme: flatly
+    highlight: tango
+    toc: true
+    toc_float: true
+    collapsed: false
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Preliminaries
+
+First we load some packages -- two of them, *concordances* and *collostructions*, are not on CRAN and can therefore not be installed via `install.packages`. *collostructions* is available [on Susanne Flach's website](https://sfla.ch/collostructions/), *concordances* is available on [Github](https://hartmast.github.io/concordances/) and can be installed using `devtools::install_github` (package `devtools` needs to be installed; if it is not installed yet, you can install it from CRAN.)
+
+```{r pkg, message=FALSE}
+
+# install concordances package (if not yet installed)
+if(!is.element("concordances", installed.packages())) {
+  devtools::install_github("hartmast/concordances")
+}
+
+# load packages
+library(collostructions) # available at sfla.ch
+library(concordances)
+library(tidyverse)
+library(data.table)
+library(ggraph)
+library(igraph)
+library(networkD3)
+
+```
+
+## Queries
+
+We used [DECOW](https://www.webcorpora.org/) to search for quantifier/degree-modifier constructions. The following queries were used (followed by the number of matches):
+
+```{r queries}
+
+# list of files
+f <- list.files(pattern = "xml")
+
+# get queries from concordance file:
+sapply(1:length(f), function(i) trimws(gsub("<query>|</query>", "", readLines(f[i], n = 7)[6])))
+
+```
+
+## Read in data
+
+We use the concordances package to read in the data.
+
+```{r readin, message=F, warning=F, results='hide'}
+
+# read data ---------------------------------------------------------------
+
+fuenk <- getNSE("ein_em_Fuenkchen_ADJ_N.xml", xml = T, tags = T, context_tags = F, verbose = T)
+fuenk_zu <- getNSE("ein_em_Fuenkchen_zu.xml", xml = T, tags = T, context_tags = F, verbose = T)
+tack_zack <- getNSE("ein_enm_Tacken_Zacken_N_ADJ.xml", xml = T, context_tags = F)
+tack_zack_zu <- getNSE("ein_enm_Tacken_Zacken_zu.xml", xml = T, context_tags = F)
+handvoll <- getNSE("eine_r_Handvoll_ADJ_N.xml", xml = T, context_tags = F, tags = T)
+idee <- getNSE("eine_r_Idee_ADJ_N.xml", xml = T, context_tags = F, tags = T)
+idee_zu <- getNSE("eine_r_Idee_zu_ADJ.xml", xml = T, context_tags = F, tags = T)
+tick <- getNSE("ein_enm_Tick_ADJ_N.xml", xml = T, context_tags = F, tags = T)
+tick_zu <- getNSE("ein_enm_Tick_zu.xml", xml = T, context_tags = F, tags = T)
+bisschen <- fread("ein_bisschen_adj_n_frequency_list.txt", col.names = c("Token", "Freq", "bla"))
+hauch <- getNSE("ein_enm_Hauch_ADJ_N.xml", xml = T, context_tags = F, tags = T)
+hauch_zu <- getNSE("ein_enm_Hauch_zu.xml", xml = T, context_tags = F, tags = T)
+spur <- getNSE("eine_r_Spur_N_Adj.xml", xml = T, context_tags = F, tags = T)
+spur_zu <- getNSE("eine_r_Spur_zu_ADJ.xml", xml = T, context_tags = F, tags = T)
+quaentchen <- getNSE("ein_emn_Quäentchen_N_ADJ_V.xml", xml = T, context_tags = F, tags = T)
+quaentchen_zu <- getNSE("ein_enm_Quäentchen_zu.xml", xml = T, context_tags = F, tags = T)
+
+```
+
+## Data wrangling
+
+We write and use a function to remove duplicates; we combine the concordances for "ein(e) X ADJ/N" and "ein(e) X zu ADJ"; and we add a lemma column to each concordance (using the automatic annotation).
+
+```{r wrangl, message=FALSE, warning=FALSE}
+
+# function for removing duplicates -----------
+remove_duplicates <- function(df) {
+  x <- which(duplicated(df$Left) && 
+               duplicated(df$Key) &&
+               duplicated(df$Right))
+  
+  if(length(x) > 0) {
+    df <- df[-x,]
+  }
+  
+  return(df)
+  
+}
+
+# get modified nouns and adjectives in
+# "bisschen" dataframe
+bisschen[, Lemma := gsub("ein bisschen ", "", bisschen$Token)]
+
+# remove duplicates
+idee <- remove_duplicates(idee)
+tick <- remove_duplicates(tick)
+handvoll <- remove_duplicates(handvoll)
+tack_zack <- remove_duplicates(tack_zack)
+fuenk <- remove_duplicates(fuenk)
+hauch <- remove_duplicates(hauch)
+spur <- remove_duplicates(spur)
+idee_zu <- remove_duplicates(idee_zu)
+tick_zu <- remove_duplicates(tick_zu)
+tack_zack_zu <- remove_duplicates(tack_zack_zu)
+fuenk_zu <- remove_duplicates(fuenk_zu)
+hauch_zu <- remove_duplicates(hauch_zu)
+spur_zu <- remove_duplicates(spur_zu)
+quaentchen <- remove_duplicates(quaentchen)
+quaentchen_zu <- remove_duplicates(quaentchen_zu)
+
+# combine "zu" and "normal" ones:
+idee <- rbind(mutate(idee), cxn_type = "ADJ_N",
+      mutate(idee_zu), cxn_type = "zu_ADJ")
+spur <- rbind(mutate(spur), cxn_type = "ADJ_N",
+              mutate(spur_zu), cxn_type = "zu_ADJ")
+fuenk <- rbind(mutate(fuenk), cxn_type = "ADJ_N",
+              mutate(fuenk_zu), cxn_type = "zu_ADJ")
+spur <- rbind(mutate(spur), cxn_type = "ADJ_N",
+              mutate(spur_zu), cxn_type = "zu_ADJ")
+tack_zack <- rbind(mutate(tack_zack), cxn_type = "ADJ_N",
+              mutate(tack_zack_zu), cxn_type = "zu_ADJ")
+tick <- rbind(mutate(tick), cxn_type = "ADJ_N",
+              mutate(tick_zu), cxn_type = "zu_ADJ")
+hauch <- rbind(mutate(hauch), cxn_type = "ADJ_N",
+              mutate(hauch_zu), cxn_type = "zu_ADJ")
+quaentchen <- rbind(mutate(quaentchen), cxn_type = "ADJ_N",
+                    mutate(quaentchen_zu), cxn_type = "zu_ADJ")
+
+
+# add lemma column
+idee$Lemma <- last_left(idee, Tag3_Key, 1)
+tick$Lemma <- last_left(tick, Tag3_Key, 1)
+fuenk$Lemma <- last_left(fuenk, Tag3_Key, 1)
+tack_zack$Lemma <- last_left(tack_zack, Tag3_Key, 1)
+handvoll$Lemma <- last_left(handvoll, Tag3_Key, 1)
+spur$Lemma <- last_left(spur, Tag3_Key, 1)
+hauch$Lemma <- last_left(hauch, Tag3_Key, 1)
+quaentchen$Lemma <- last_left(quaentchen, Tag3_Key, 1)
+
+```
+
+
+In the case of Idee, there are still many false hits, so we export it for annotation...
+
+```{r idee}
+
+# write_csv(idee, "idee_for_anno.csv")
+
+```
+
+We use the list of lemmas attested in the concordances to extract their total frequency in the DECOW corpus from the [DECOW lemma frequency list](https://www.webcorpora.org/opendata/frequencies/german/decow16b/).
+
+```{r freqs, eval = FALSE}
+
+# list of all lemmas across dfs
+lemmas_all <- c(idee$Lemma, tick$Lemma, fuenk$Lemma, tack_zack$Lemma,
+  handvoll$Lemma, bisschen$Lemma, spur$Lemma, hauch$Lemma, 
+  quaentchen$Lemma) %>% unique
+
+
+# collostructional analyses -----------------------------------------------
+# 
+# read DECOW lemma frequencies
+decow <- fread("/Volumes/TOSHIBA EXT/DECOW ngrams/decow16bx.lp.tsv")
+
+# only keep verbs, nouns and adjectives
+decow01 <- decow[V2 %in% c("NN", "ADJD", "ADJA", "VAINF", "VVFIN", "VVINF", "VAPP", "VVPP", "VVIZU", "VAIMP")]
+colnames(decow01) <- c("lemma", "pos", "Freq")
+
+# count POS
+pos_tbl <- decow01 %>% group_by(pos) %>% summarise(
+  Freq = sum(Freq)
+)
+
+# only keep lemmas attested in the constructions
+decow <- decow01[lemma %in% lemmas_all]
+
+# export 
+# saveRDS(decow, "decow_modifier_lemmas.Rds")
+#saveRDS(pos_tbl, "pos_tbl.Rds")
+
+```
+
+```{r reimp, message=FALSE}
+
+# re-import
+decow <- readRDS("decow_modifier_lemmas.Rds")
+pos_tbl <- readRDS("pos_tbl.Rds")
+
+```
+
+Some of the lemmas in the decow dataframe occur more than once (e.g. because they have multiple POS tags), so we have to sum them up first. Also, the `idee` dataframe still contains many false hits, so we limit it to its most frequent domain by far, comparatives.
+
+```{r, message=FALSE}
+
+# sum up frequencies of lemmas occuring more than once
+decow_sum <- decow %>% group_by(lemma) %>% summarise(
+  Freq = sum(Freq)
+)
+
+
+# idee still has many obvious false hits, so we
+# add a column that checks whether
+# the word ends with the comparative suffix -er
+idee$ends_with_er <- grepl("er(e|es|en)?$", idee$Key)
+idee <- filter(idee, ends_with_er == TRUE)
+
+
+```
+
+
+## Collostructional analysis
+
+We have to do some more data wrangling in order to create the input dataframes for collostructional analysis.
+
+```{r, message=FALSE}
+
+# frequency tables for the different constructions
+idee_tbl <- idee %>% select(Lemma) %>% table %>% as.data.frame
+fuenk_tbl <- fuenk %>% select(Lemma) %>% table %>% as.data.frame
+handvoll_tbl <- handvoll %>%  select(Lemma) %>% table %>% as.data.frame
+tick_tbl <- tick %>%  select(Lemma) %>% table %>% as.data.frame
+tack_tbl <- tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),] %>% 
+  select(Lemma) %>% table %>% as.data.frame
+zack_tbl <- tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),] %>% 
+  select(Lemma) %>% table %>% as.data.frame
+hauch_tbl <- hauch %>%  select(Lemma) %>% table %>% as.data.frame
+spur_tbl <- spur %>%  select(Lemma) %>% table %>% as.data.frame
+quaentchen_tbl <- quaentchen %>% select(Lemma) %>% table %>% as.data.frame()
+
+colnames(idee_tbl) <- colnames(fuenk_tbl) <- 
+  colnames(handvoll_tbl) <- colnames(tack_tbl) <- 
+  colnames(zack_tbl) <- colnames(tick_tbl) <-  
+  colnames(spur_tbl) <- colnames(hauch_tbl) <-
+  colnames(quaentchen_tbl) <- 
+  c("lemma", "Freq_mod")
+
+bisschen_tbl <- bisschen %>% group_by(Lemma) %>% summarise(
+  Freq_bisschen = sum(Freq)
+)
+colnames(bisschen_tbl) <- c("lemma", "Freq_bisschen")
+
+# join dataframes
+idee_tbl <- left_join(idee_tbl, decow_sum)
+fuenk_tbl <- left_join(fuenk_tbl, decow_sum)
+handvoll_tbl <- left_join(handvoll_tbl, decow_sum)
+tack_tbl <- left_join(tack_tbl, decow_sum)
+tick_tbl <- left_join(tick_tbl, decow_sum)
+zack_tbl <- left_join(zack_tbl, decow_sum)
+spur_tbl <- left_join(spur_tbl, decow_sum)
+hauch_tbl <- left_join(hauch_tbl, decow_sum)
+quaentchen_tbl <- left_join(quaentchen_tbl, decow_sum)
+bisschen_tbl <- left_join(bisschen_tbl, decow_sum)
+
+# replace NAs by 0
+idee_tbl <- replace_na(idee_tbl, list(Freq_mod = 0, Freq = 0))
+fuenk_tbl <- replace_na(fuenk_tbl, list(Freq_mod = 0, Freq = 0))
+handvoll_tbl <- replace_na(handvoll_tbl, list(Freq_mod = 0, Freq = 0))
+tack_tbl <- replace_na(tack_tbl, list(Freq_mod = 0, Freq = 0))
+tick_tbl <- replace_na(tick_tbl, list(Freq_mod = 0, Freq = 0))
+zack_tbl <- replace_na(zack_tbl, list(Freq_mod = 0, Freq = 0))
+hauch_tbl <- replace_na(hauch_tbl, list(Freq_mod = 0, Freq = 0))
+spur_tbl <- replace_na(spur_tbl, list(Freq_mod = 0, Freq = 0))
+quaentchen_tbl <- replace_na(quaentchen_tbl, list(Freq_mod = 0, Freq = 0))
+bisschen_tbl <- replace_na(bisschen_tbl, list(Freq_bisschen = 0, Freq = 0))
+
+# reomove cases where cxn frequency is bigger than
+# corpus frequency
+idee_tbl <- idee_tbl[which(idee_tbl$Freq_mod <= idee_tbl$Freq),]
+fuenk_tbl <- fuenk_tbl[which(fuenk_tbl$Freq_mod <= fuenk_tbl$Freq),]
+handvoll_tbl <- handvoll_tbl[which(handvoll_tbl$Freq_mod <= handvoll_tbl$Freq),]
+tack_tbl <- tack_tbl[which(tack_tbl$Freq_mod <= tack_tbl$Freq),]
+tick_tbl <- tick_tbl[which(tick_tbl$Freq_mod <= tick_tbl$Freq),]
+zack_tbl <- zack_tbl[which(zack_tbl$Freq_mod <= zack_tbl$Freq),]
+spur_tbl <- spur_tbl[which(spur_tbl$Freq_mod <= spur_tbl$Freq),]
+hauch_tbl <- hauch_tbl[which(hauch_tbl$Freq_mod <= hauch_tbl$Freq),]
+quaentchen_tbl <- quaentchen_tbl[which(quaentchen_tbl$Freq_mod <= quaentchen_tbl$Freq),]
+bisschen_tbl <- bisschen_tbl[which(bisschen_tbl$Freq_bisschen <= bisschen_tbl$Freq),]
+
+
+# collexeme analysis ------------------------------------------------------
+
+col_idee <- collex(idee_tbl,
+       corpsize = 
+         sum(pos_tbl[grep("ADJ.*", pos_tbl$pos),]$Freq))# %>%  write_excel_csv("idee_collex.csv")
+
+col_fuenk <- collex(fuenk_tbl,
+       corpsize = sum(pos_tbl$Freq)) # %>% write_excel_csv("fuenkchen_collex.csv")
+
+col_handvoll <- collex(handvoll_tbl,
+       corpsize = sum(pos_tbl$Freq)) # %>% write_csv("handvoll_collex.csv")
+
+col_tack <- collex(tack_tbl, 
+       corpsize = sum(pos_tbl$Freq)) # %>% write_csv("tack_collex.csv")
+
+col_tick <- collex(tick_tbl, 
+                   corpsize = sum(pos_tbl$Freq)) # %>% write_csv("tick_collex.csv")
+
+col_zack <- collex(zack_tbl, 
+       corpsize = sum(pos_tbl$Freq)) # %>% write_csv("zack_collex.csv")
+
+col_spur <- collex(spur_tbl, 
+                   corpsize = sum(pos_tbl$Freq)) # %>% write_csv("spur_collex.csv")
+
+
+col_hauch <- collex(hauch_tbl, 
+                   corpsize = sum(pos_tbl$Freq)) # %>% write_csv("hauch_collex.csv")
+
+col_quaentchen <- collex(quaentchen_tbl, 
+                    corpsize = sum(pos_tbl$Freq)) # %>% write_csv("quaentchen_collex.csv")
+
+
+col_bisschen <- collex(bisschen_tbl, 
+                   corpsize = sum(pos_tbl$Freq)) # %>% write_csv("bisschen_collex.csv")
+
+```
+
+
+## Collostructional analysis: Results
+
+Here are the results of the collostructional analyses (in alphabetical order).
+
+### ein bisschen
+
+```{r, echo=FALSE}
+
+col_bisschen
+
+```
+
+### ein Hauch
+
+```{r, echo=FALSE}
+
+col_hauch
+
+```
+
+### eine Spur
+
+```{r, echo=FALSE}
+
+col_spur
+
+```
+
+### ein Zacken
+
+```{r, echo=FALSE}
+
+col_zack
+
+```
+
+### ein Tick
+
+```{r, echo=FALSE}
+
+col_tick
+
+```
+
+
+### ein Tacken
+
+```{r, echo=FALSE}
+
+col_tack
+
+```
+
+### eine Handvoll
+
+```{r, echo=FALSE}
+
+col_handvoll
+
+```
+
+### ein Fünkchen
+
+```{r, echo=FALSE}
+
+col_fuenk
+
+```
+
+### eine Idee
+
+```{r, echo=FALSE}
+
+col_idee
+
+```
+
+### ein Quäntchen
+
+```{r, echo=FALSE}
+
+col_quaentchen
+
+```
+
+## References
+
+- Schäfer, Roland. 2015. Processing and querying large corpora with the COW14 architecture. In Piotr Bański, Hanno Biber, Evelyn Breiteneder, Marc Kupietz, Harald Lüngen & Andreas Witt (eds.), Challenges in the Management of Large Corpora (CMLC-3), 28–34.
+
+- Schäfer, Roland & Felix Bildhauer. 2012. Building Large Corpora from the Web Using a New Efficient Tool Chain. In Nicoletta Calzolari, Khalid Choukri, Terry Declerck, Mehmet Uğur Doğan, Bente Maegaard, Joseph Mariani, Asuncion Moreno, Jan Odijk & Stelios Piperidis (eds.), Proceedings of LREC 2012, 486–493.
+
+
