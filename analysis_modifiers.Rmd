@@ -183,7 +183,7 @@ spur <- read_xlsx("spur_for_anno.xlsx")
 # remove false hits
 idee <- filter(idee, keep == "y")
 hauch <- filter(hauch, Modifier == "y")
-# spur <- filter(spur, Modifier == "y")
+spur <- filter(spur, Modifier == "y")
 
 ```
 
@@ -442,6 +442,75 @@ col_quaentchen %>% datatable() %>%
   formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
+
+## Number of shared collexemes
+
+While the collexeme analyses give an impression of the semantics of each construction, another interesting question is how many of the collexemes are shared between the individual constructions. In order to assess this question, we create a word-construction-matrix and visualize it using a heatmap.
+
+```{r heatmap}
+
+# create long list of lemmas and cxns
+lemmas_df <- rbind(
+  mutate(select(fuenk, Lemma), cxn = "Fünkchen"),
+  mutate(select(hauch, Lemma), cxn = "Hauch"),
+  mutate(select(idee, Lemma), cxn = "Idee"),
+  mutate(select(quaentchen, Lemma), cxn = "Quäntchen"),
+  mutate(select(spur, Lemma), cxn = "Spur"),
+  mutate(select(tack_zack, Lemma), cxn = "Tacken/Zacken"),
+  mutate(select(tick, Lemma), cxn = "Tick")
+)
+
+# find out how many items are shared between each 2 cxns
+cxns <- unique(lemmas_df$cxn)
+
+# empty dataframe
+mydf <- data.frame(matrix(NA, nrow = 7, ncol = 7))
+colnames(mydf) <- cxns
+rownames(mydf) <- cxns
+
+for(i in 1:length(cxns)) {
+  for(j in 1:length(cxns)) {
+    mydf[j,i] <- length(intersect(filter(lemmas_df, cxn == colnames(mydf)[i])$Lemma,
+          filter(lemmas_df, cxn == rownames(mydf)[j])$Lemma))
+    
+  }
+}
+
+
+# change to long dataframe
+mydf2 <- rownames_to_column(mydf)
+mydf_long <- pivot_longer(mydf2, 2:length(mydf2))
+colnames(mydf_long) <- c("cxn_A", "cxn_B", "n")
+
+# get a more reliable impression of the number of shared items by dividing the frequency value by the total number of types of the less frequent construction
+
+mytypes <- lemmas_df %>% group_by(cxn) %>% summarise(
+  types = length(unique(Lemma))
+)
+
+# add n of types for cxn A and B
+mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_A" = "cxn"))
+mydf_long <- rename(mydf_long, types_A = types)
+mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_B" = "cxn"))
+mydf_long <- rename(mydf_long, types_B = types)
+
+# get smaller n
+mydf_long$n_min_types <- ifelse(mydf_long$types_A < mydf_long$types_B, mydf_long$types_A, mydf_long$types_B)
+
+# "relative" frequency
+mydf_long$rel <- mydf_long$n / mydf_long$n_min_types
+
+
+# heatmap
+mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+
+mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+
+
+```
+
 
 ## References
 
