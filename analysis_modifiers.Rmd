@@ -35,6 +35,8 @@ library(data.table)
 library(ggraph)
 library(igraph)
 library(networkD3)
+library(DT)
+library(readxl)
 
 ```
 
@@ -158,7 +160,33 @@ In the case of Idee, there are still many false hits, so we export it for annota
 
 # write_csv(idee, "idee_for_anno.csv")
 
+# Hauch: add last_left of keyword
+# hauch$Key_modified <- last_left(hauch$Key, n = 1, omit_punctuation = FALSE)
+
+# spur$Key_modified <- last_left(spur$Key, n = 1, omit_punctuation = FALSE)
+
+# write_csv(hauch, "hauch_for_anno.csv")
+# write_csv(spur, "spur_for_anno.csv")
+
 ```
+
+
+We re-import the annotated datafiles:
+
+```{r reimp01}
+
+# import data
+idee <- read_xlsx("idee_for_anno.xlsx")
+hauch <- read_xlsx("hauch_for_anno.xlsx")
+spur <- read_xlsx("spur_for_anno.xlsx")
+
+# remove false hits
+idee <- filter(idee, keep == "y")
+hauch <- filter(hauch, Modifier == "y")
+# spur <- filter(spur, Modifier == "y")
+
+```
+
 
 We use the list of lemmas attested in the concordances to extract their total frequency in the DECOW corpus from the [DECOW lemma frequency list](https://www.webcorpora.org/opendata/frequencies/german/decow16b/).
 
@@ -209,14 +237,6 @@ Some of the lemmas in the decow dataframe occur more than once (e.g. because the
 decow_sum <- decow %>% group_by(lemma) %>% summarise(
   Freq = sum(Freq)
 )
-
-
-# idee still has many obvious false hits, so we
-# add a column that checks whether
-# the word ends with the comparative suffix -er
-idee$ends_with_er <- grepl("er(e|es|en)?$", idee$Key)
-idee <- filter(idee, ends_with_er == TRUE)
-
 
 ```
 
@@ -336,7 +356,8 @@ Here are the results of the collostructional analyses (in alphabetical order).
 
 ```{r, echo=FALSE}
 
-col_bisschen
+col_bisschen %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -344,7 +365,8 @@ col_bisschen
 
 ```{r, echo=FALSE}
 
-col_hauch
+col_hauch %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -352,7 +374,8 @@ col_hauch
 
 ```{r, echo=FALSE}
 
-col_spur
+col_spur %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -360,7 +383,8 @@ col_spur
 
 ```{r, echo=FALSE}
 
-col_zack
+col_zack %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -368,7 +392,8 @@ col_zack
 
 ```{r, echo=FALSE}
 
-col_tick
+col_tick %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -377,7 +402,8 @@ col_tick
 
 ```{r, echo=FALSE}
 
-col_tack
+col_tack %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -385,7 +411,8 @@ col_tack
 
 ```{r, echo=FALSE}
 
-col_handvoll
+col_handvoll %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -393,7 +420,8 @@ col_handvoll
 
 ```{r, echo=FALSE}
 
-col_fuenk
+col_fuenk %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -401,7 +429,8 @@ col_fuenk
 
 ```{r, echo=FALSE}
 
-col_idee
+col_idee %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
@@ -409,7 +438,8 @@ col_idee
 
 ```{r, echo=FALSE}
 
-col_quaentchen
+col_quaentchen %>% datatable() %>% 
+  formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
 
 ```
 
