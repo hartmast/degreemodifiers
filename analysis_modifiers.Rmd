@@ -825,7 +825,8 @@ lemmas_df <- rbind(
   mutate(select(idee, Lemma), cxn = "Idee"),
   mutate(select(quaentchen, Lemma), cxn = "Quäntchen"),
   mutate(select(spur, Lemma), cxn = "Spur"),
-  mutate(select(tack_zack, Lemma), cxn = "Tacken/Zacken"),
+  mutate(select(tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),], Lemma), cxn = "Tacken"),
+  mutate(select(tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),], Lemma), cxn = "Zacken"),
   mutate(select(tick, Lemma), cxn = "Tick")
 )
 
@@ -833,14 +834,14 @@ lemmas_df <- rbind(
 cxns <- unique(lemmas_df$cxn)
 
 # empty dataframe
-mydf <- data.frame(matrix(NA, nrow = 7, ncol = 7))
+mydf <- data.frame(matrix(NA, nrow = 8, ncol = 8))
 colnames(mydf) <- cxns
 rownames(mydf) <- cxns
 
 for(i in 1:length(cxns)) {
   for(j in 1:length(cxns)) {
-    mydf[j,i] <- length(intersect(filter(lemmas_df, cxn == colnames(mydf)[i])$Lemma,
-          filter(lemmas_df, cxn == rownames(mydf)[j])$Lemma))
+    mydf[j,i] <- length(intersect(unique(filter(lemmas_df, cxn == colnames(mydf)[i])$Lemma),
+          unique(filter(lemmas_df, cxn == rownames(mydf)[j])$Lemma)))
     
   }
 }
@@ -875,7 +876,7 @@ mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, l
   xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
 
 mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
 
 
 ```
@@ -886,37 +887,42 @@ The same limited to the top 100 collexemes for each construction:
 
 # top 100 collexemes:
 
-top100_collexemes <- c(
-col_fuenk %>% select(COLLEX) %>% head(100),
-col_handvoll %>% select(COLLEX) %>% head(100),
-col_hauch %>% select(COLLEX) %>% head(100),
-col_idee %>% select(COLLEX) %>% head(100),
-col_quaentchen %>% select(COLLEX) %>% head(100),
-col_spur %>% select(COLLEX) %>% head(100),
-col_tack %>% select(COLLEX) %>% head(100),
-col_tick %>% select(COLLEX) %>% head(100),
-col_zack %>% select(COLLEX) %>% head(100)
-) %>% unique %>% unlist
+top100_collexemes <- tibble(
+  "Fünkchen" = col_fuenk %>% select(COLLEX) %>% head(100) %>% unname,
+  "Handvoll" = col_handvoll %>% select(COLLEX) %>% head(100) %>% unname,
+  "Hauch" =  col_hauch %>% select(COLLEX) %>% head(100) %>% unname,
+  "Idee" = col_idee %>% select(COLLEX) %>% head(100) %>% unname,
+  "Quäntchen" = col_quaentchen %>% select(COLLEX) %>% head(100) %>% unname,
+  "Spur" = col_spur %>% select(COLLEX) %>% head(100) %>% unname,
+  "Tacken" = col_tack %>% select(COLLEX) %>% head(100) %>% unname,
+  "Tick" = col_tick %>% select(COLLEX) %>% head(100) %>% unname,
+  "Zacken" = col_zack %>% select(COLLEX) %>% head(100) %>% unname
+)
 
+# remove "$" from column names
+colnames(top100_collexemes) <- gsub("[[:punct:]]", "", colnames(top100_collexemes))
 
 
 # lemmas_df only with top 100 lemmas
 # create long list of lemmas and cxns
+
+
 lemmas_df <- rbind(
-  mutate(select(filter(fuenk, Lemma %in% top100_collexemes), Lemma), cxn = "Fünkchen"),
-  mutate(select(filter(hauch, Lemma %in% top100_collexemes), Lemma), cxn = "Hauch"),
-  mutate(select(filter(idee, Lemma %in% top100_collexemes), Lemma), cxn = "Idee"),
-  mutate(select(filter(quaentchen, Lemma %in% top100_collexemes), Lemma), cxn = "Quäntchen"),
-  mutate(select(filter(spur, Lemma %in% top100_collexemes), Lemma), cxn = "Spur"),
-  mutate(select(filter(tack_zack, Lemma %in% top100_collexemes), Lemma), cxn = "Tacken/Zacken"),
-  mutate(select(filter(tick, Lemma %in% top100_collexemes), Lemma), cxn = "Tick")
+  mutate(select(filter(fuenk, Lemma %in% unlist(top100_collexemes$`Fünkchen`)), Lemma), cxn = "Fünkchen"),
+  mutate(select(filter(hauch, Lemma %in% unlist(top100_collexemes$Hauch)), Lemma), cxn = "Hauch"),
+  mutate(select(filter(idee, Lemma %in% unlist(top100_collexemes$Idee)), Lemma), cxn = "Idee"),
+  mutate(select(filter(quaentchen, Lemma %in% unlist(top100_collexemes$`Quäntchen`)), Lemma), cxn = "Quäntchen"),
+  mutate(select(filter(spur, Lemma %in% unlist(top100_collexemes$Spur)), Lemma), cxn = "Spur"),
+  mutate(select(filter(tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),], Lemma %in% unlist(top100_collexemes$Tacken)), Lemma), cxn = "Tacken"),
+  mutate(select(filter(tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),], Lemma %in% unlist(top100_collexemes$Zacken)), Lemma), cxn = "Zacken"),
+  mutate(select(filter(tick, Lemma %in% unlist(top100_collexemes$Tick)), Lemma), cxn = "Tick")
 )
 
 
 # The rest is copy&pasted from above as it remains unchanged:
 
 # empty dataframe
-mydf <- data.frame(matrix(NA, nrow = 7, ncol = 7))
+mydf <- data.frame(matrix(NA, nrow = 8, ncol = 8))
 colnames(mydf) <- cxns
 rownames(mydf) <- cxns
 
@@ -958,10 +964,13 @@ mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, l
   xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
 
 mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
 
 
 ```
+
+
+
 
 
 ## References
