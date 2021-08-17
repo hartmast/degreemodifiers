@@ -1,7 +1,7 @@
 ---
 title: "Quantifier/Degree-modifier constructions"
 author: "Stefan Hartmann, Jakob Neels, Tobias Ungerer"
-date: "8/2/2021"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document:
     theme: flatly
@@ -37,6 +37,7 @@ library(igraph)
 library(networkD3)
 library(DT)
 library(readxl)
+library(vroom)
 
 ```
 
@@ -154,7 +155,7 @@ quaentchen$Lemma <- last_left(quaentchen, Tag3_Key, 1)
 ```
 
 
-In the case of Idee, there are still many false hits, so we export it for annotation...
+In the case of Idee, and to a lesser extent in the case of Hauch and Spur, there are still many false hits, so we export it for annotation...
 
 ```{r idee}
 
@@ -184,6 +185,146 @@ spur <- read_xlsx("spur_for_anno.xlsx")
 idee <- filter(idee, keep == "y")
 hauch <- filter(hauch, Modifier == "y")
 spur <- filter(spur, Modifier == "y")
+
+```
+
+As an intermediate step, we create a large dataframe containing all attestations together with more information about their source, taken from the DECOW document list.
+
+```{r, eval = FALSE}
+
+# combine all:
+d_all <- rbind(select(fuenk, c("Metatag1", "Left", "Key", "Right")),
+      select(handvoll, c("Metatag1", "Left", "Key", "Right")),
+      select(hauch, c("Metatag1", "Left", "Key", "Right")),
+      select(idee, c("Metatag1", "Left", "Key", "Right")),
+      select(quaentchen, c("Metatag1", "Left", "Key", "Right")),
+      select(spur, c("Metatag1", "Left", "Key", "Right")),
+      select(tack_zack, c("Metatag1", "Left", "Key", "Right")),
+      select(tick, c("Metatag1", "Left", "Key", "Right")))
+
+# list of DECOW documents
+decowdoc <- vroom("/Volumes/My Passport/DECOW16BX-Corex/decow16b.doc.csv.gz", col_names = paste0("V", c(1:85)))
+
+# only keep relevant columns
+decowdoc <- decowdoc[,c(1:4)]
+
+# join with d_all
+d_all <- left_join(d_all, decowdoc, by = c("Metatag1" = "V4"))
+
+# export
+write_excel_csv(d_all, "d_all.csv")
+
+```
+
+```{r}
+
+# re-import
+d_all <- read_csv("d_all.csv")
+
+```
+
+The full list is available [here](https://osf.io/wrcpk/).
+
+A cursory glance at the instances where the modified item is a verb shows that most if not all of them are false hits, hence we will exclude them from further analysis.
+
+```{r}
+
+fuenk <- fuenk[grep("^V.*", last_left(fuenk$Tag2_Key, n = 1), invert = T),]
+hauch <- hauch[grep("^V.*", last_left(hauch$Tag2_Key, n = 1), invert = T),]
+tick <- tick[grep("^V.*", last_left(tick$Tag2_Key, n = 1), invert = T),]
+quaentchen <- quaentchen[grep("^V.*", last_left(quaentchen$Tag2_Key, n = 1), invert = T),]
+tack_zack <- tack_zack[grep("^V.*", last_left(tack_zack$Tag2_Key, n = 1), invert = T),]
+tick <- tick[grep("^V.*", last_left(tick$Tag2_Key, n = 1), invert = T),]
+
+```
+
+
+
+## Summary statistics
+
+How often do the individual constructions combine with nouns and adjectives etc.?
+
+```{r}
+
+# function for getting the distribution:
+get_distro <- function(vec) {
+  x <- gsub("(?<=.).*", "", last_left(trimws(vec), n = 1), perl = T) %>% table
+  y <- x[which(names(x) %in% c("A", "N", "V"))]
+  y <- c(y, "other" = sum(x[which(!names(x) %in% c("A", "N", "V"))]))
+  return(y)
+}
+
+# function for finding comparatives:
+get_compar <- function(df) {
+  # find comparatives
+  find_comparatives <- which(grepl("ADJ.*", last_left(df$Tag2_Key, n = 1)) &
+grepl("er(e|es|en)?$", trimws(df$Key)))
+  
+  # add to df
+  df$comparative <- sapply(1:nrow(df), function(i) ifelse(i %in% find_comparatives, "yes", "no"))
+  
+  return(table(df$comparative))
+  
+  
+}
+
+# get "zu ADJ"
+get_zu <- function(df) {
+  return(length(which(sapply(1:nrow(df), function(i) unlist(strsplit(df$Key[i], " "))[3])=="zu")))
+}
+
+
+# get POS distributions
+get_distro(fuenk$Tag2_Key) %>% as.data.frame %>% t()
+
+distro <- bind_rows(
+  get_distro(fuenk$Tag2_Key),
+get_distro(handvoll$Tag2_Key),
+get_distro(idee$Tag2_Key),
+get_distro(hauch$Tag2_Key),
+get_distro(quaentchen$Tag2_Key),
+get_distro(spur$Tag2_Key),
+get_distro(tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),]$Tag2_Key),
+get_distro(tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),]$Tag2_Key),
+get_distro(tick$Tag2_Key)
+) %>% as_tibble %>% mutate(Cxn = c("Fünkchen", "Handvoll", "Idee", "Hauch", "Quäntchen", "Spur", "Tacken", "Zacken", "Tick")) %>% replace_na(list(A = 0, N = 0, V = 0))
+
+# get comparative distributions
+distro <- mutate(distro, comparatives = c(
+  get_compar(fuenk)[2],
+get_compar(handvoll)[2],
+get_compar(idee)[2],
+get_compar(hauch)[2],
+get_compar(quaentchen)[2],
+get_compar(spur)[2],
+get_compar(tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),])[2],
+get_compar(tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),])[2],
+get_compar(tick)[2]
+)) %>% replace_na(list(comparatives = 0))
+
+
+# zu...
+distro <- mutate(distro, zu = c(
+  get_zu(fuenk),
+get_zu(handvoll),
+get_zu(idee),
+get_zu(hauch),
+get_zu(quaentchen),
+get_zu(spur),
+get_zu(tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),]),
+get_zu(tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),]),
+get_zu(tick)
+))
+
+# column with comparatives and "zu" in ADJ column
+distro$ADJ <- paste0(distro$A, " (", distro$comparatives, "/", distro$zu, ")")
+distro <- rename(distro, c("ADJ (comparative / excessive)" = "ADJ"))
+
+# add column with sum total
+distro$sum <- distro$A + distro$N  + distro$other
+
+# reorder columns
+distro[,c(4,2,6,3,7)] %>% datatable()
 
 ```
 
@@ -443,11 +584,239 @@ col_quaentchen %>% datatable() %>%
 
 ```
 
+## Network analysis
+
+```{r}
+
+# first links, then edges
+
+links <- rbind(
+  col_idee %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "eine Idee") ,
+  col_handvoll %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "eine Handvoll") ,
+  col_fuenk %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "ein Fünkchen") ,
+  col_tack %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "ein Tacken"),
+  col_tick %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "ein Tick"),
+  col_zack %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "ein Zacken"),
+  col_hauch %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "ein Hauch"),
+  col_spur %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "eine Spur"),
+  col_quaentchen %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "ein Quäntchen"),
+  col_bisschen %>% select(COLLEX, COLL.STR.LOGL) %>% mutate(LEX = "ein bisschen") ) %>%
+  mutate(edge_type = LEX) %>%
+  group_by(LEX) %>%
+  slice(1:100) %>%
+  ungroup()
+
+# reorder columns
+links <- links[,c(3,1,2,4)] %>% 
+  arrange(edge_type)
+
+# create dataframes for links and nodes
+nodes_LEX = data.frame(links$LEX) %>%
+  distinct() %>%
+  rename(name = links.LEX) %>%
+  mutate(node_type = name) %>%
+  mutate(node_size = 10) %>%
+  mutate(text_size = 100) %>%
+  mutate(text_fontface = "bold") %>%
+  mutate(shape = "circle") %>%
+  mutate(label = name) 
+nodes_COLLEX = data.frame(links$COLLEX) %>%
+  distinct() %>%
+  rename(name = links.COLLEX) %>%
+  mutate(node_type = "COLLEX") %>%
+  mutate(node_size = 1.5) %>%
+  mutate(text_size = 1) %>%
+  mutate(text_fontface = "plain") %>%
+  mutate(label = NA) 
+nodes_all = bind_rows(nodes_LEX, nodes_COLLEX) %>% 
+  arrange(node_type)
+
+# plot
+col_graph <- graph_from_data_frame(links, nodes_all, directed = F)
+
+# set.seed(1985)
+set.seed(1995)
+# used "kk" layout because it is less spread out
+ggraph(col_graph, layout = "kk") +
+  geom_edge_link(aes(color = edge_type), show.legend = FALSE,
+                 end_cap = circle(.07, 'inches')) +
+  scale_edge_color_manual(values = c("#FF0000", "#A7D547", "#FFA500", "#00FFFF", 
+                                     "#FF00FF", "#00BFFF", "#008000",  "#CDAD5A", "#00FF00", "#AD7A44")) +
+  geom_node_point(aes(color = node_type, size = node_size), show.legend = FALSE) +
+  scale_color_manual(values = c("#000000", "#FF0000", "#A7D547", "#FFA500", "#00FFFF", 
+                                "#FF00FF", "#00BFFF", "#008000",  "#CDAD5A", "#00FF00", "#AD7A44")) +
+  geom_node_text(aes(label = label, size = text_size, fontface = text_fontface), vjust = 1, hjust = 1, show.legend = FALSE) +
+  theme_void()
+# decreased width and height so the font size would come out as bigger (or is there a better way?)
+# ggsave("network_modifiers_100_kk.png", width = 15, height = 10)
+
+
+# plot only with selected nodes
+
+# select modifiers
+# reorder columns
+links2 <- links %>% filter(LEX %in% c("ein bisschen", "ein Tick", 
+                                      "eine Idee", "ein Quäntchen") & 
+                             edge_type %in% c("ein bisschen", "ein Tick", 
+                                             "eine Idee", "ein Quäntchen"))
+
+# create dataframes for links and nodes
+nodes_LEX2 = data.frame(links2$LEX) %>%
+  distinct() %>%
+  rename(name = links2.LEX) %>%
+  mutate(node_type = name) %>%
+  mutate(node_size = 2) %>%
+  mutate(text_size = 4) %>%
+  mutate(text_fontface = "bold") 
+nodes_COLLEX2 = data.frame(links2$COLLEX) %>%
+  distinct() %>%
+  rename(name = links2.COLLEX) %>%
+  mutate(node_type = "COLLEX") %>%
+  mutate(node_size = 1.5) %>%
+  mutate(text_size = 2.5) %>%
+  mutate(text_fontface = "plain") 
+nodes_all2 <- bind_rows(nodes_LEX2, nodes_COLLEX2) %>% 
+  arrange(node_type)
+
+# plot
+col_graph2 <- graph_from_data_frame(links2, nodes_all2, directed = F)
+
+# plot
+set.seed(1995)
+ggraph(col_graph2, layout = "fr") +
+  geom_edge_link(aes(color = edge_type), show.legend = FALSE,
+                 end_cap = circle(.07, 'inches')) +
+  scale_edge_color_manual(values = c("#FF0000", "#00FF00", "#FFA500", "#00FFFF", 
+                                     "#FF00FF", "#00BFFF", "#008000", "#007000", "#006000")) +
+  geom_node_point(aes(color = node_type, size = node_size), show.legend = FALSE) +
+  scale_color_manual(values = c("#000000", "#FF0000", "#00FF00", "#FFA500", "#00FFFF", 
+                                "#FF00FF", "#00BFFF", "#008000", "#007000", "#006000")) +
+  geom_node_text(aes(label = name, size = text_size, fontface = text_fontface), vjust = 1, hjust = 1, show.legend = FALSE) +
+  theme_void()
+# ggsave("network_modifiers001.png", width = 15, height = 25)
+# ggsave("network_selection002.png", width = 40, height = 20)
+
+
+
+# Playing around a bit more (Tobias) ----------------------------------------
+
+modifiers = c("eine Idee", "eine Handvoll", "ein Fünkchen", "ein Tacken", "ein Tick", "ein Zacken",
+              "ein Hauch", "eine Spur", "ein Quäntchen", "ein bisschen")
+
+# plot with layout "kk"
+ggraph(col_graph, layout = "kk") +
+  geom_edge_link(aes(color = edge_type), show.legend = FALSE,
+                 end_cap = circle(.07, 'inches')) +
+  scale_edge_color_manual(values = c("#FF0000", "#A7D547", "#FFA500", "#00FFFF", 
+                                     "#FF00FF", "#00BFFF", "#008000",  "#CDAD5A", "#00FF00", "#AD7A44")) +
+  geom_node_point(aes(color = node_type, size = node_size), show.legend = FALSE) +
+  scale_color_manual(values = c("#000000", "#FF0000", "#A7D547", "#FFA500", "#00FFFF", 
+                                "#FF00FF", "#00BFFF", "#008000",  "#CDAD5A", "#00FF00", "#AD7A44")) +
+  geom_node_text(aes(label = name, size = text_size, fontface = text_fontface), vjust = 1, hjust = 1, show.legend = FALSE) +
+  theme_void()
+# ggsave("network_modifiers_kk.png", width = 40, height = 20)
+
+# plot with edge length determined by COLLSTR (logged to decrease the differences; not sure why the inverse was needed but otherwise it was the wrong way round)
+ggraph(col_graph, layout = "kk", weights = 1/log(COLL.STR.LOGL)) +
+  geom_edge_link(aes(color = edge_type), show.legend = FALSE,
+                 end_cap = circle(.07, 'inches')) +
+  scale_edge_color_manual(values = c("#FF0000", "#A7D547", "#FFA500", "#00FFFF", 
+                                     "#FF00FF", "#00BFFF", "#008000",  "#CDAD5A", "#00FF00", "#AD7A44")) +
+  geom_node_point(aes(color = node_type, size = node_size), show.legend = FALSE) +
+  scale_color_manual(values = c("#000000", "#FF0000", "#A7D547", "#FFA500", "#00FFFF", 
+                                "#FF00FF", "#00BFFF", "#008000",  "#CDAD5A", "#00FF00", "#AD7A44")) +
+  geom_node_text(aes(label = name, size = text_size, fontface = text_fontface), vjust = 1, hjust = 1, show.legend = FALSE) +
+  theme_void()
+# ggsave("network_modifiers_kk_COLLSTR_as_edge_length.png", width = 40, height = 20)
+
+# betweenness centrality as a measure of how 'important' the modifier nodes are for the network, i.e. how many shortest paths pass through each modifier node
+betweenness_centrality = betweenness(col_graph, v = modifiers, 
+                                     directed = TRUE, weights = NULL, nobigint = TRUE)
+betweenness_centrality
+
+
+# number of collexemes that each modifier shares with each other modifier
+# note that the same collexeme can be counted several times for different modifier combinations
+# first, restrict to collexemes that are linked to at least two modifiers
+links_reduced <- links %>%
+  group_by(COLLEX) %>%
+  filter(n()>1)
+# then loop over each modifier and determine how many collexemes it shares with each other modifier
+for (word in modifiers) {
+  target = word
+  links_target = links_reduced %>%
+    filter(LEX == target)
+  collexeme_neighbours = links_reduced %>%
+    filter(COLLEX %in% links_target$COLLEX) %>% 
+    filter(LEX != target) %>%
+    group_by(LEX) %>%
+    count() 
+  
+  collexeme_neighbours_sum = sum(collexeme_neighbours$n)
+  collexeme_neighbours_sd_normalised = round((sd(collexeme_neighbours$n)/sum(collexeme_neighbours$n)), 3)
+  # or should sd be divided by sum(collexeme_neighbours$n)?
+  # to account for the fact that some modifiers have more shared collexemes than others
+  
+  print(word)
+  # table of no. of shared collexemes for each modifier
+  print(collexeme_neighbours)
+  # sum of no. of shared collexemes for each modifier
+  print(collexeme_neighbours_sum)
+  # sd of no. of shared collexemes for each modifier
+  print(collexeme_neighbours_sd_normalised)
+}
+
+
+## EXTENSION: store the collexeme counts from the loop as a dataframe, and then visualise them as a heat map
+
+# plot only of shared collexemes
+# create reduced dataframes for links and nodes
+nodes_reduced_LEX = data.frame(links_reduced$LEX) %>%
+  distinct() %>%
+  rename(name = links_reduced.LEX) %>%
+  mutate(node_type = name) %>%
+  mutate(node_size = 3) %>%
+  mutate(text_size = 20) %>%
+  mutate(text_fontface = "bold") 
+nodes_reduced_COLLEX = data.frame(links_reduced$COLLEX) %>%
+  distinct() %>%
+  rename(name = links_reduced.COLLEX) %>%
+  mutate(node_type = "COLLEX") %>%
+  mutate(node_size = 2) %>%
+  mutate(text_size = 15) %>%
+  mutate(text_fontface = "plain") 
+nodes_reduced_all = bind_rows(nodes_reduced_LEX, nodes_reduced_COLLEX) %>% 
+  arrange(node_type)
+
+# plot
+col_graph_reduced <- graph_from_data_frame(links_reduced, nodes_reduced_all, directed = F)
+
+set.seed(1995)
+ggraph(col_graph_reduced, layout = "kk") +
+  geom_edge_link(aes(color = edge_type), show.legend = FALSE,
+                 end_cap = circle(.07, 'inches')) +
+  scale_edge_color_manual(values = c("#FF0000", "#00FF00", "#FFA500", "#00FFFF", 
+                                     "#FF00FF", "#00BFFF", "#008000", "#6a5acd", "#ffa500", "#ee82ee")) +
+  geom_node_point(aes(color = node_type, size = node_size), show.legend = FALSE) +
+  scale_color_manual(values = c("#000000", "#FF0000", "#00FF00", "#FFA500", "#00FFFF", 
+                                "#FF00FF", "#00BFFF", "#008000",  "#6a5acd", "#ffa500", "#ee82ee")) +
+  geom_node_text(aes(label = name, size = text_size, fontface = text_fontface), vjust = 1, hjust = 1, show.legend = FALSE) +
+  theme_void()
+# ggsave("network_modifiers_shared_collexemes_100kk.png", width = 25, height = 15)
+# ggsave("network_modifiers_shared_collexemes_100kk.png", width = 40, height = 20)
+
+
+
+```
+
 ## Number of shared collexemes
 
 While the collexeme analyses give an impression of the semantics of each construction, another interesting question is how many of the collexemes are shared between the individual constructions. In order to assess this question, we create a word-construction-matrix and visualize it using a heatmap.
 
 ```{r heatmap}
+
+# TODO: add network before
+# TODO: limit to those displayed in the network
 
 # create long list of lemmas and cxns
 lemmas_df <- rbind(
@@ -462,6 +831,89 @@ lemmas_df <- rbind(
 
 # find out how many items are shared between each 2 cxns
 cxns <- unique(lemmas_df$cxn)
+
+# empty dataframe
+mydf <- data.frame(matrix(NA, nrow = 7, ncol = 7))
+colnames(mydf) <- cxns
+rownames(mydf) <- cxns
+
+for(i in 1:length(cxns)) {
+  for(j in 1:length(cxns)) {
+    mydf[j,i] <- length(intersect(filter(lemmas_df, cxn == colnames(mydf)[i])$Lemma,
+          filter(lemmas_df, cxn == rownames(mydf)[j])$Lemma))
+    
+  }
+}
+
+
+# change to long dataframe
+mydf2 <- rownames_to_column(mydf)
+mydf_long <- pivot_longer(mydf2, 2:length(mydf2))
+colnames(mydf_long) <- c("cxn_A", "cxn_B", "n")
+
+# get a more reliable impression of the number of shared items by dividing the frequency value by the total number of types of the less frequent construction
+
+mytypes <- lemmas_df %>% group_by(cxn) %>% summarise(
+  types = length(unique(Lemma))
+)
+
+# add n of types for cxn A and B
+mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_A" = "cxn"))
+mydf_long <- rename(mydf_long, types_A = types)
+mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_B" = "cxn"))
+mydf_long <- rename(mydf_long, types_B = types)
+
+# get smaller n
+mydf_long$n_min_types <- ifelse(mydf_long$types_A < mydf_long$types_B, mydf_long$types_A, mydf_long$types_B)
+
+# "relative" frequency
+mydf_long$rel <- mydf_long$n / mydf_long$n_min_types
+
+
+# heatmap
+mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+
+mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+
+
+```
+
+The same limited to the top 100 collexemes for each construction:
+
+```{r heatm2}
+
+# top 100 collexemes:
+
+top100_collexemes <- c(
+col_fuenk %>% select(COLLEX) %>% head(100),
+col_handvoll %>% select(COLLEX) %>% head(100),
+col_hauch %>% select(COLLEX) %>% head(100),
+col_idee %>% select(COLLEX) %>% head(100),
+col_quaentchen %>% select(COLLEX) %>% head(100),
+col_spur %>% select(COLLEX) %>% head(100),
+col_tack %>% select(COLLEX) %>% head(100),
+col_tick %>% select(COLLEX) %>% head(100),
+col_zack %>% select(COLLEX) %>% head(100)
+) %>% unique %>% unlist
+
+
+
+# lemmas_df only with top 100 lemmas
+# create long list of lemmas and cxns
+lemmas_df <- rbind(
+  mutate(select(filter(fuenk, Lemma %in% top100_collexemes), Lemma), cxn = "Fünkchen"),
+  mutate(select(filter(hauch, Lemma %in% top100_collexemes), Lemma), cxn = "Hauch"),
+  mutate(select(filter(idee, Lemma %in% top100_collexemes), Lemma), cxn = "Idee"),
+  mutate(select(filter(quaentchen, Lemma %in% top100_collexemes), Lemma), cxn = "Quäntchen"),
+  mutate(select(filter(spur, Lemma %in% top100_collexemes), Lemma), cxn = "Spur"),
+  mutate(select(filter(tack_zack, Lemma %in% top100_collexemes), Lemma), cxn = "Tacken/Zacken"),
+  mutate(select(filter(tick, Lemma %in% top100_collexemes), Lemma), cxn = "Tick")
+)
+
+
+# The rest is copy&pasted from above as it remains unchanged:
 
 # empty dataframe
 mydf <- data.frame(matrix(NA, nrow = 7, ncol = 7))
