@@ -72,7 +72,7 @@ idee <- getNSE("eine_r_Idee_ADJ_N.xml", xml = T, context_tags = F, tags = T)
 idee_zu <- getNSE("eine_r_Idee_zu_ADJ.xml", xml = T, context_tags = F, tags = T)
 tick <- getNSE("ein_enm_Tick_ADJ_N.xml", xml = T, context_tags = F, tags = T)
 tick_zu <- getNSE("ein_enm_Tick_zu.xml", xml = T, context_tags = F, tags = T)
-bisschen <- fread("ein_bisschen_adj_n_frequency_list.txt", col.names = c("Token", "Freq", "bla"))
+bisschen <- fread("ein_bisschen_adj_n_lemma_frequency_list.txt", col.names = c("Token", "Freq", "bla"))
 hauch <- getNSE("ein_enm_Hauch_ADJ_N.xml", xml = T, context_tags = F, tags = T)
 hauch_zu <- getNSE("ein_enm_Hauch_zu.xml", xml = T, context_tags = F, tags = T)
 spur <- getNSE("eine_r_Spur_N_Adj.xml", xml = T, context_tags = F, tags = T)
@@ -102,9 +102,23 @@ remove_duplicates <- function(df) {
   
 }
 
+# remove "unknown" lemma from "bisschen" dataframe
+bisschen <- bisschen[grep("(unknown)", bisschen$Token, invert = T),]
+
 # get modified nouns and adjectives in
 # "bisschen" dataframe
-bisschen[, Lemma := gsub("ein bisschen ", "", bisschen$Token)]
+bisschen$Lemma <- last_left(bisschen$Token, n = 1)
+
+# remove empty column from bisschen
+bisschen <- bisschen[,c(1,2,4)]
+
+# backup copy
+bisschen_backup <- bisschen
+
+# some are duplicated, so we have to sum them up:
+bisschen <- bisschen %>% group_by(Lemma) %>% summarise(
+  Freq = sum(Freq)
+)
 
 # remove duplicates
 idee <- remove_duplicates(idee)
@@ -212,14 +226,14 @@ decowdoc <- decowdoc[,c(1:4)]
 d_all <- left_join(d_all, decowdoc, by = c("Metatag1" = "V4"))
 
 # export
-write_excel_csv(d_all, "d_all.csv")
+# write_excel_csv(d_all, "d_all.csv")
 
 ```
 
 ```{r}
 
 # re-import
-d_all <- read_csv("d_all.csv")
+# d_all <- read_csv("d_all.csv")
 
 ```
 
@@ -585,6 +599,9 @@ col_quaentchen %>% datatable() %>%
 ```
 
 ## Network analysis
+
+The collexeme analysis is complemented by a network analysis. The aim of this analysis is to check whether different modified items combine with the modifiers to a similar degree or whether the items combining with the individual modifiers occupy certain semantic niches.
+
 
 ```{r}
 
