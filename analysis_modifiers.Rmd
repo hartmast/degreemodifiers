@@ -38,6 +38,7 @@ library(networkD3)
 library(DT)
 library(readxl)
 library(vroom)
+library(corrplot)
 
 ```
 
@@ -835,6 +836,7 @@ While the collexeme analyses give an impression of the semantics of each constru
 lemmas_df <- rbind(
   mutate(select(fuenk, Lemma), cxn = "Fünkchen"),
   mutate(select(hauch, Lemma), cxn = "Hauch"),
+  mutate(select(handvoll, Lemma), cxn = "Handvoll"),
   mutate(select(idee, Lemma), cxn = "Idee"),
   mutate(select(quaentchen, Lemma), cxn = "Quäntchen"),
   mutate(select(spur, Lemma), cxn = "Spur"),
@@ -848,7 +850,7 @@ lemmas_df <- rbind(
 cxns <- unique(lemmas_df$cxn)
 
 # empty dataframe
-mydf <- data.frame(matrix(NA, nrow = 9, ncol = 9))
+mydf <- data.frame(matrix(NA, nrow = 10, ncol = 10))
 colnames(mydf) <- cxns
 rownames(mydf) <- cxns
 
@@ -866,47 +868,41 @@ mydf2 <- rownames_to_column(mydf)
 mydf_long <- pivot_longer(mydf2, 2:length(mydf2))
 colnames(mydf_long) <- c("cxn_A", "cxn_B", "n")
 
-# get a more reliable impression of the number of shared items by dividing the frequency value by the total number of types of the less frequent construction
 
-mytypes <- lemmas_df %>% group_by(cxn) %>% summarise(
-  types = length(unique(Lemma))
+# add columns "shared" and "non-shared" to visualize
+mydf_long$shared <-sapply(1:nrow(mydf_long), function(i) length(intersect(unique(lemmas_df[which(lemmas_df$cxn==mydf_long$cxn_A[i]),]$Lemma),
+unique(lemmas_df[which(lemmas_df$cxn==mydf_long$cxn_B[i]),]$Lemma)))
 )
 
-# add n of types for cxn A and B
-mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_A" = "cxn"))
-mydf_long <- rename(mydf_long, types_A = types)
-mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_B" = "cxn"))
-mydf_long <- rename(mydf_long, types_B = types)
+mydf_long$nonshared <- sapply(1:nrow(mydf_long), function(i) length(setdiff(unique(lemmas_df[which(lemmas_df$cxn==mydf_long$cxn_A[i]),]$Lemma),
+unique(lemmas_df[which(lemmas_df$cxn==mydf_long$cxn_B[i]),]$Lemma)))
+)
 
-# get smaller n and average of both n's to compute
-# two different relative frequencies
-mydf_long$n_min_types <- ifelse(mydf_long$types_A < mydf_long$types_B, mydf_long$types_A, mydf_long$types_B)
+# select relevant columns
+mydf_long2 <- mydf_long %>% select(cxn_A, cxn_B, shared, nonshared)
 
-mydf_long$n_types_average <- (mydf_long$types_A + mydf_long$types_B) / 2
+# add relative column
+mydf_long2$rel <- mydf_long2$shared / (mydf_long2$shared + mydf_long2$nonshared)
 
-# "relative" frequency
-mydf_long$rel <- mydf_long$n / mydf_long$n_min_types
-mydf_long$rel2 <- mydf_long$n / mydf_long$n_types_average
+# absolute values with shared and sum total of items
+mydf_long2$abs <- paste(mydf_long2$shared, "\n(", mydf_long2$nonshared + mydf_long2$shared, ")", sep = "")
 
+# even better: paste it to x axis labels
+mydf_long2$x <- paste(mydf_long2$cxn_A, " (", mydf_long2$nonshared + mydf_long2$shared, ")", sep="")
 
-# heatmap with color displaying frequency relative to
-# smaller number of types
-mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+# heatmap
+mydf_long2 %>% filter(rel < 1) %>% ggplot(aes(x = x, y = cxn_B, fill = rel, label = shared)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
   xlab("Construction") + ylab("Construction") + 
   guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
 
-# heatmap with color displaying frequency relative to
-# mean number of types
-mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel2, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + 
-  guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+# ggsave("heatmap001_all_types.png", width = 6, height = 6)
 
-# heatmap with color displaying absolute frequency
-# of overlapping types
-mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + 
-  guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+# or maybe try to plot the "base" collexemes on the y axis?
 
+mydf_long2 %>% filter(rel < 1) %>% ggplot(aes(x = cxn_B, y = x, fill = rel, label = shared)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + 
+  guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) +     scale_y_discrete(limits=rev)
+# ggsave("heatmap002_all_types.png", width = 7, height = 6)
 
 ```
 
@@ -940,6 +936,7 @@ colnames(top100_collexemes) <- gsub("[[:punct:]]", "", colnames(top100_collexeme
 lemmas_df <- rbind(
   mutate(select(filter(fuenk, Lemma %in% unlist(top100_collexemes$`Fünkchen`)), Lemma), cxn = "Fünkchen"),
   mutate(select(filter(hauch, Lemma %in% unlist(top100_collexemes$Hauch)), Lemma), cxn = "Hauch"),
+  mutate(select(filter(handvoll, Lemma %in% unlist(top100_collexemes$Handvoll)), Lemma), cxn = "Handvoll"),
   mutate(select(filter(idee, Lemma %in% unlist(top100_collexemes$Idee)), Lemma), cxn = "Idee"),
   mutate(select(filter(quaentchen, Lemma %in% unlist(top100_collexemes$`Quäntchen`)), Lemma), cxn = "Quäntchen"),
   mutate(select(filter(spur, Lemma %in% unlist(top100_collexemes$Spur)), Lemma), cxn = "Spur"),
@@ -953,7 +950,7 @@ lemmas_df <- rbind(
 # The rest is largely copy&pasted from above as it remains almost unchanged:
 
 # empty dataframe
-mydf <- data.frame(matrix(NA, nrow = 9, ncol = 9))
+mydf <- data.frame(matrix(NA, nrow = 10, ncol = 10))
 colnames(mydf) <- cxns
 rownames(mydf) <- cxns
 
