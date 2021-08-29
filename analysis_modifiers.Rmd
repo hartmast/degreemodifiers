@@ -664,7 +664,7 @@ ggraph(col_graph, layout = "kk") +
                                 "#FF00FF", "#00BFFF", "#008000",  "#CDAD5A", "#00FF00", "#AD7A44")) +
   geom_node_text(aes(label = label, size = text_size, fontface = text_fontface), vjust = 1, hjust = 1, show.legend = FALSE) +
   theme_void()
-# decreased width and height so the font size would come out as bigger (or is there a better way?)
+# decreased width and height so the font size would come out as bigger
 # ggsave("network_modifiers_100_kk.png", width = 15, height = 10)
 
 
@@ -749,7 +749,7 @@ ggraph(col_graph, layout = "kk", weights = 1/log(COLL.STR.LOGL)) +
 # betweenness centrality as a measure of how 'important' the modifier nodes are for the network, i.e. how many shortest paths pass through each modifier node
 betweenness_centrality = betweenness(col_graph, v = modifiers, 
                                      directed = TRUE, weights = NULL, nobigint = TRUE)
-betweenness_centrality
+betweenness_centrality %>% as.data.frame() %>% rownames_to_column() %>% rename(c(cxn = "rowname", betweenness_centr = `.`)) %>% datatable() %>% formatSignif(columns = "betweenness_centr", digits = 3)
 
 
 # number of collexemes that each modifier shares with each other modifier
@@ -784,7 +784,6 @@ for (word in modifiers) {
 }
 
 
-## EXTENSION: store the collexeme counts from the loop as a dataframe, and then visualise them as a heat map
 
 # plot only of shared collexemes
 # create reduced dataframes for links and nodes
@@ -819,8 +818,8 @@ ggraph(col_graph_reduced, layout = "kk") +
                                 "#FF00FF", "#00BFFF", "#008000",  "#6a5acd", "#ffa500", "#ee82ee")) +
   geom_node_text(aes(label = name, size = text_size, fontface = text_fontface), vjust = 1, hjust = 1, show.legend = FALSE) +
   theme_void()
-# ggsave("network_modifiers_shared_collexemes_100kk.png", width = 25, height = 15)
-# ggsave("network_modifiers_shared_collexemes_100kk.png", width = 40, height = 20)
+#ggsave("network_modifiers_shared_collexemes_100kk.png", width = 25, height = 15)#
+#ggsave("network_modifiers_shared_collexemes_100kk.png", width = 40, height = 20)
 
 
 
@@ -832,9 +831,6 @@ While the collexeme analyses give an impression of the semantics of each constru
 
 ```{r heatmap}
 
-# TODO: add network before
-# TODO: limit to those displayed in the network
-
 # create long list of lemmas and cxns
 lemmas_df <- rbind(
   mutate(select(fuenk, Lemma), cxn = "Fünkchen"),
@@ -844,14 +840,15 @@ lemmas_df <- rbind(
   mutate(select(spur, Lemma), cxn = "Spur"),
   mutate(select(tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),], Lemma), cxn = "Tacken"),
   mutate(select(tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),], Lemma), cxn = "Zacken"),
-  mutate(select(tick, Lemma), cxn = "Tick")
+  mutate(select(tick, Lemma), cxn = "Tick"),
+  mutate(select(bisschen, Lemma), cxn = "bisschen")
 )
 
 # find out how many items are shared between each 2 cxns
 cxns <- unique(lemmas_df$cxn)
 
 # empty dataframe
-mydf <- data.frame(matrix(NA, nrow = 8, ncol = 8))
+mydf <- data.frame(matrix(NA, nrow = 9, ncol = 9))
 colnames(mydf) <- cxns
 rownames(mydf) <- cxns
 
@@ -881,19 +878,34 @@ mydf_long <- rename(mydf_long, types_A = types)
 mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_B" = "cxn"))
 mydf_long <- rename(mydf_long, types_B = types)
 
-# get smaller n
+# get smaller n and average of both n's to compute
+# two different relative frequencies
 mydf_long$n_min_types <- ifelse(mydf_long$types_A < mydf_long$types_B, mydf_long$types_A, mydf_long$types_B)
+
+mydf_long$n_types_average <- (mydf_long$types_A + mydf_long$types_B) / 2
 
 # "relative" frequency
 mydf_long$rel <- mydf_long$n / mydf_long$n_min_types
+mydf_long$rel2 <- mydf_long$n / mydf_long$n_types_average
 
 
-# heatmap
+# heatmap with color displaying frequency relative to
+# smaller number of types
 mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+  xlab("Construction") + ylab("Construction") + 
+  guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
 
+# heatmap with color displaying frequency relative to
+# mean number of types
+mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel2, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + 
+  guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+
+# heatmap with color displaying absolute frequency
+# of overlapping types
 mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+  xlab("Construction") + ylab("Construction") + 
+  guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
 
 
 ```
@@ -913,7 +925,8 @@ top100_collexemes <- tibble(
   "Spur" = col_spur %>% select(COLLEX) %>% head(100) %>% unname,
   "Tacken" = col_tack %>% select(COLLEX) %>% head(100) %>% unname,
   "Tick" = col_tick %>% select(COLLEX) %>% head(100) %>% unname,
-  "Zacken" = col_zack %>% select(COLLEX) %>% head(100) %>% unname
+  "Zacken" = col_zack %>% select(COLLEX) %>% head(100) %>% unname,
+  "bisschen" = col_bisschen %>% select(COLLEX) %>% head(100) %>% unname
 )
 
 # remove "$" from column names
@@ -932,14 +945,15 @@ lemmas_df <- rbind(
   mutate(select(filter(spur, Lemma %in% unlist(top100_collexemes$Spur)), Lemma), cxn = "Spur"),
   mutate(select(filter(tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),], Lemma %in% unlist(top100_collexemes$Tacken)), Lemma), cxn = "Tacken"),
   mutate(select(filter(tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),], Lemma %in% unlist(top100_collexemes$Zacken)), Lemma), cxn = "Zacken"),
-  mutate(select(filter(tick, Lemma %in% unlist(top100_collexemes$Tick)), Lemma), cxn = "Tick")
+  mutate(select(filter(tick, Lemma %in% unlist(top100_collexemes$Tick)), Lemma), cxn = "Tick"),
+  mutate(select(filter(bisschen, Lemma %in% unlist(top100_collexemes$bisschen)), Lemma), cxn = "bisschen")
 )
 
 
-# The rest is copy&pasted from above as it remains unchanged:
+# The rest is largely copy&pasted from above as it remains almost unchanged:
 
 # empty dataframe
-mydf <- data.frame(matrix(NA, nrow = 8, ncol = 8))
+mydf <- data.frame(matrix(NA, nrow = 9, ncol = 9))
 colnames(mydf) <- cxns
 rownames(mydf) <- cxns
 
@@ -969,7 +983,7 @@ mydf_long <- rename(mydf_long, types_A = types)
 mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_B" = "cxn"))
 mydf_long <- rename(mydf_long, types_B = types)
 
-# get smaller n
+# get smaller n (average not needed here because all are 100)
 mydf_long$n_min_types <- ifelse(mydf_long$types_A < mydf_long$types_B, mydf_long$types_A, mydf_long$types_B)
 
 # "relative" frequency
@@ -985,9 +999,6 @@ mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, lab
 
 
 ```
-
-
-
 
 
 ## References
