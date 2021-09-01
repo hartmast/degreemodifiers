@@ -1,6 +1,6 @@
 ---
 title: "Quantifier/Degree-modifier constructions"
-author: "Stefan Hartmann, Jakob Neels, Tobias Ungerer"
+author: "xxxx, xxxx, and xxxx"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document:
@@ -810,6 +810,8 @@ mydf_long2 %>% filter(rel < 1) %>% ggplot(aes(x = cxn_B, y = x, fill = rel, labe
 
 
 ## References
+
+- Flach, Susanne. 2017. collostructions: An R Implementation for the Family of Collostructional Methods. www.bit.ly/sflach.
 
 - Schäfer, Roland. 2015. Processing and querying large corpora with the COW14 architecture. In Piotr Bański, Hanno Biber, Evelyn Breiteneder, Marc Kupietz, Harald Lüngen & Andreas Witt (eds.), Challenges in the Management of Large Corpora (CMLC-3), 28–34.
 
