@@ -1,6 +1,6 @@
 ---
 title: "Quantifier/Degree-modifier constructions"
-author: "xxxx, xxxx, and xxxx"
+author: "Jakob Neels, Tobias Ungerer & Stefan Hartmann"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output: 
   html_document:
@@ -805,6 +805,11 @@ mydf_long2 %>% filter(rel < 1) %>% ggplot(aes(x = cxn_B, y = x, fill = rel, labe
   xlab("Construction") + ylab("Construction") + 
   guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) +     scale_y_discrete(limits=rev)
 # ggsave("heatmap002_all_types.png", width = 7, height = 6)
+
+# incl. shared with itself:
+mydf_long2 %>% ggplot(aes(x = cxn_B, y = x, fill = rel, label = shared)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + 
+  guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) +     scale_y_discrete(limits=rev)
 
 ```
 
