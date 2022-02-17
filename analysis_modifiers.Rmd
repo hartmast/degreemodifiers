@@ -339,7 +339,7 @@ distro <- rename(distro, c("ADJ (comparative / excessive)" = "ADJ"))
 distro$sum <- distro$A + distro$N  + distro$other
 
 # reorder columns
-distro[,c(4,2,6,3,7)] %>% datatable()
+distro[,c(4,2,6,3,7,8)] %>% datatable()
 
 # POS distribution of "bisschen" -----
 
@@ -792,6 +792,7 @@ unique(lemmas_df[which(lemmas_df$cxn==mydf_long$cxn_B[i]),]$Lemma)))
 mydf_long2 <- mydf_long %>% select(cxn_A, cxn_B, shared, nonshared)
 
 # add relative column
+# relative to sum of shared and nonshared items:
 mydf_long2$rel <- mydf_long2$shared / (mydf_long2$shared + mydf_long2$nonshared)
 
 # absolute values with shared and sum total of items
@@ -811,8 +812,100 @@ mydf_long2 %>% ggplot(aes(x = cxn_B, y = x, fill = rel, label = shared)) + geom_
   xlab("Construction") + ylab("Construction") + 
   guides(fill = "none") + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) +     scale_y_discrete(limits=rev)
 
+
 ```
 
+
+The same limited to the top 100 collexemes for each construction:
+
+```{r heatm2}
+
+# top 100 collexemes:
+
+top100_collexemes <- tibble(
+  "Fünkchen" = col_fuenk %>% select(COLLEX) %>% head(100) %>% unname,
+  "Handvoll" = col_handvoll %>% select(COLLEX) %>% head(100) %>% unname,
+  "Hauch" =  col_hauch %>% select(COLLEX) %>% head(100) %>% unname,
+  "Idee" = col_idee %>% select(COLLEX) %>% head(100) %>% unname,
+  "Quäntchen" = col_quaentchen %>% select(COLLEX) %>% head(100) %>% unname,
+  "Spur" = col_spur %>% select(COLLEX) %>% head(100) %>% unname,
+  "Tacken" = col_tack %>% select(COLLEX) %>% head(100) %>% unname,
+  "Tick" = col_tick %>% select(COLLEX) %>% head(100) %>% unname,
+  "Zacken" = col_zack %>% select(COLLEX) %>% head(100) %>% unname,
+  "bisschen" = col_bisschen %>% select(COLLEX) %>% head(100) %>% unname
+)
+
+# remove "$" from column names
+colnames(top100_collexemes) <- gsub("[[:punct:]]", "", colnames(top100_collexemes))
+
+
+# lemmas_df only with top 100 lemmas
+# create long list of lemmas and cxns
+
+
+lemmas_df <- rbind(
+  mutate(select(filter(fuenk, Lemma %in% unlist(top100_collexemes$`Fünkchen`)), Lemma), cxn = "Fünkchen"),
+  mutate(select(filter(hauch, Lemma %in% unlist(top100_collexemes$Hauch)), Lemma), cxn = "Hauch"),
+  mutate(select(filter(handvoll, Lemma %in% unlist(top100_collexemes$Handvoll)), Lemma), cxn = "Handvoll"),
+  mutate(select(filter(idee, Lemma %in% unlist(top100_collexemes$Idee)), Lemma), cxn = "Idee"),
+  mutate(select(filter(quaentchen, Lemma %in% unlist(top100_collexemes$`Quäntchen`)), Lemma), cxn = "Quäntchen"),
+  mutate(select(filter(spur, Lemma %in% unlist(top100_collexemes$Spur)), Lemma), cxn = "Spur"),
+  mutate(select(filter(tack_zack[grepl("Tacken", tack_zack$Key, ignore.case = T),], Lemma %in% unlist(top100_collexemes$Tacken)), Lemma), cxn = "Tacken"),
+  mutate(select(filter(tack_zack[grepl("Zacken", tack_zack$Key, ignore.case = T),], Lemma %in% unlist(top100_collexemes$Zacken)), Lemma), cxn = "Zacken"),
+  mutate(select(filter(tick, Lemma %in% unlist(top100_collexemes$Tick)), Lemma), cxn = "Tick"),
+  mutate(select(filter(bisschen, Lemma %in% unlist(top100_collexemes$bisschen)), Lemma), cxn = "bisschen")
+)
+
+
+# The rest is largely copy&pasted from above as it remains almost unchanged:
+
+# empty dataframe
+mydf <- data.frame(matrix(NA, nrow = 10, ncol = 10))
+colnames(mydf) <- cxns
+rownames(mydf) <- cxns
+
+for(i in 1:length(cxns)) {
+  for(j in 1:length(cxns)) {
+    mydf[j,i] <- length(intersect(filter(lemmas_df, cxn == colnames(mydf)[i])$Lemma,
+          filter(lemmas_df, cxn == rownames(mydf)[j])$Lemma))
+    
+  }
+}
+
+
+# change to long dataframe
+mydf2 <- rownames_to_column(mydf)
+mydf_long <- pivot_longer(mydf2, 2:length(mydf2))
+colnames(mydf_long) <- c("cxn_A", "cxn_B", "n")
+
+# get a more reliable impression of the number of shared items by dividing the frequency value by the total number of types of the less frequent construction
+
+mytypes <- lemmas_df %>% group_by(cxn) %>% summarise(
+  types = length(unique(Lemma))
+)
+
+# add n of types for cxn A and B
+mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_A" = "cxn"))
+mydf_long <- rename(mydf_long, types_A = types)
+mydf_long <- left_join(mydf_long, mytypes, by = c("cxn_B" = "cxn"))
+mydf_long <- rename(mydf_long, types_B = types)
+
+# get smaller n (average not needed here because all are 100)
+mydf_long$n_min_types <- ifelse(mydf_long$types_A < mydf_long$types_B, mydf_long$types_A, mydf_long$types_B)
+
+# "relative" frequency
+mydf_long$rel <- mydf_long$n / mydf_long$n_min_types
+
+
+# heatmap
+mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+
+mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+
+
+```
 
 ## References
 
