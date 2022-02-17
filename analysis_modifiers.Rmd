@@ -899,10 +899,11 @@ mydf_long$rel <- mydf_long$n / mydf_long$n_min_types
 
 # heatmap
 mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) + scale_y_discrete(limits=rev)
 
 mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9))
+  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) +
+  scale_y_discrete(limits=rev)
 
 
 ```
