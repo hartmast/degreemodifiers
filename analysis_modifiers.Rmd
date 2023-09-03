@@ -28,6 +28,7 @@ if(!is.element("concordances", installed.packages())) {
 }
 
 # load packages
+# install.packages("https://sfla.ch/wp-content/uploads/2021/02/collostructions_0.2.0.tar.gz", repos = NULL)
 library(collostructions) # available at sfla.ch
 library(concordances)
 library(tidyverse)
@@ -91,8 +92,9 @@ We write and use a function to remove duplicates; we combine the concordances fo
 
 # function for removing duplicates -----------
 remove_duplicates <- function(df) {
-  x <- which(duplicated(df$Left) && 
-               duplicated(df$Key) &&
+  
+  x <- which(duplicated(df$Left) &
+               duplicated(df$Key) &
                duplicated(df$Right))
   
   if(length(x) > 0) {
@@ -170,7 +172,7 @@ quaentchen$Lemma <- last_left(quaentchen, Tag3_Key, 1)
 ```
 
 
-In the case of Idee, and to a lesser extent in the case of Hauch and Spur, there are still many false hits, so we export it for annotation...
+In the case of *Idee*, and to a lesser extent in the case of *Hauch* and *Spur*, there are still many false hits, so we export them for annotation...
 
 ```{r idee}
 
@@ -238,7 +240,7 @@ d_all <- left_join(d_all, decowdoc, by = c("Metatag1" = "V4"))
 
 ```
 
-The full list is available [here](https://osf.io/wrcpk/).
+The full list is available [here](https://osf.io/q9uk4/).
 
 A cursory glance at the instances where the modified item is a verb shows that most if not all of them are false hits, hence we will exclude them from further analysis.
 
@@ -339,7 +341,7 @@ distro <- rename(distro, c("ADJ (comparative / excessive)" = "ADJ"))
 distro$sum <- distro$A + distro$N  + distro$other
 
 # reorder columns
-distro[,c(4,2,6,3,7,8)] %>% datatable()
+distro[,c(4,2,6,3,6,5,7,8)] %>% datatable()
 
 # POS distribution of "bisschen" -----
 
@@ -487,6 +489,7 @@ col_idee <- collex(idee_tbl,
        corpsize = 
          sum(pos_tbl[grep("ADJ.*", pos_tbl$pos),]$Freq))# %>%  write_excel_csv("idee_collex.csv")
 
+
 col_fuenk <- collex(fuenk_tbl,
        corpsize = sum(pos_tbl$Freq)) # %>% write_excel_csv("fuenkchen_collex.csv")
 
@@ -513,7 +516,7 @@ col_quaentchen <- collex(quaentchen_tbl,
                     corpsize = sum(pos_tbl$Freq)) # %>% write_csv("quaentchen_collex.csv")
 
 
-col_bisschen <- collex(bisschen_tbl, 
+col_bisschen <- collex(as.data.frame(bisschen_tbl), 
                    corpsize = sum(pos_tbl$Freq)) # %>% write_csv("bisschen_collex.csv")
 
 ```
@@ -525,7 +528,7 @@ Here are the results of the collostructional analyses (in alphabetical order).
 
 ### ein bisschen
 
-```{r, echo=FALSE}
+```{r, echo=FALSE, warning=FALSE}
 
 col_bisschen %>% datatable() %>% 
   formatSignif(columns = c("EXP",  "COLL.STR.LOGL"), digits=3)
@@ -899,10 +902,10 @@ mydf_long$rel <- mydf_long$n / mydf_long$n_min_types
 
 # heatmap
 mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = rel, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "relative overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) + scale_y_discrete(limits=rev)
+  xlab("Construction") + ylab("Construction") + guides(fill = 'none') + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) + scale_y_discrete(limits=rev)
 
 mydf_long %>% filter(rel < 1) %>% ggplot(aes(x = cxn_A, y = cxn_B, fill = n, label = n)) + geom_tile() + geom_text() + scale_fill_gradient(low = "yellow", high = "darkred") +
-  xlab("Construction") + ylab("Construction") + guides(fill = guide_legend(title = "overlap")) + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) +
+  xlab("Construction") + ylab("Construction") + guides(fill = 'none') + theme_classic() + theme(axis.text.x = element_text(angle=45, hjust=.9)) +
   scale_y_discrete(limits=rev)
 
 
